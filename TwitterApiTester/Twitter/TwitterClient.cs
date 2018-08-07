@@ -48,7 +48,7 @@ namespace TwitterApiTester.Twitter
         {
             var bearerToken = await GetBearerToken();
 
-            var content = new FormUrlEncodedContent(new Dictionary<string, string>()
+            var queryString = BuildQueryString(new Dictionary<string, string>()
             {
                 { "user_id", USER_ID },
                 { "count", "200" },         // 最新から200件。 200件以上ある場合は since_id を指定しないとダメかもだ
@@ -57,8 +57,6 @@ namespace TwitterApiTester.Twitter
                 { "contributor_details", "false" },
                 { "include_rts", "false" },
             });
-
-            var queryString = content.ReadAsStringAsync().Result;
 
             DefaultRequestHeaders.Accept.Clear();
             DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
@@ -71,8 +69,6 @@ namespace TwitterApiTester.Twitter
             return serializer.ReadObject(result) as List<GetTimelineResponse>;
         }
 
-
-
         /// <summary>
         /// ベアラートークンを取得する
         /// </summary>
@@ -82,20 +78,21 @@ namespace TwitterApiTester.Twitter
         /// </remarks>
         private async Task<GetBearerTokenResponse> GetBearerToken()
         {
-            var content = new FormUrlEncodedContent(new Dictionary<string, string>()
+            using (var content = new FormUrlEncodedContent(new Dictionary<string, string>()
             {
-                { "grant_type", "client_credentials" }
-            });
+                {"grant_type", "client_credentials"}
+            }))
+            {
+                DefaultRequestHeaders.Accept.Clear();
+                DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Basic",
+                    Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_twitterApiToken.ConsumerApiKey}:{_twitterApiToken.ConsumerApiSecretKey}")));
 
-            DefaultRequestHeaders.Accept.Clear();
-            DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
-                "Basic",
-                Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_twitterApiToken.ConsumerApiKey}:{_twitterApiToken.ConsumerApiSecretKey}")));
-
-            var response = await PostAsync(TwitterApi.GetBearerToken, content);
-            var result = await response.Content.ReadAsStreamAsync();
-            var serializer = new DataContractJsonSerializer(typeof(GetBearerTokenResponse));
-            return serializer.ReadObject(result) as GetBearerTokenResponse;
+                var response = await PostAsync(TwitterApi.GetBearerToken, content);
+                var result = await response.Content.ReadAsStreamAsync();
+                var serializer = new DataContractJsonSerializer(typeof(GetBearerTokenResponse));
+                return serializer.ReadObject(result) as GetBearerTokenResponse;
+            }
         }
 
         /// <summary>
@@ -118,7 +115,6 @@ namespace TwitterApiTester.Twitter
         {
             throw new NotImplementedException();
         }
-
 
         /// <summary>
         /// ユーザーのアクセストークンでOAuth署名を作成する
@@ -153,6 +149,14 @@ namespace TwitterApiTester.Twitter
             var hmacHashBites = hmac.ComputeHash(signatureDataBites);
 
             return Convert.ToBase64String(hmacHashBites);
+        }
+
+        private static string BuildQueryString(IEnumerable<KeyValuePair<string, string>> nameValueCollection)
+        {
+            using (var content = new FormUrlEncodedContent(nameValueCollection))
+            {
+                return content.ReadAsStringAsync().Result;
+            }
         }
     }
 }
