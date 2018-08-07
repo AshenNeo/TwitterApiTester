@@ -28,17 +28,19 @@ namespace TwitterApiTester
                 options.MinimumSameSitePolicy = SameSiteMode.None;
             });
 
+            // ローカル環境のTwitter設定があれば適用する。
+            var curDir = Directory.GetCurrentDirectory();
+
+            var twitterConfigName = (File.Exists($"{curDir}\\appsettings.twitter.local.json"))
+                ? "appsettings.twitter.local.json"
+                : "appsettings.twitter.json";
 
             var builder = new ConfigurationBuilder();
             builder
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.twitter.json", optional: true);
+                .SetBasePath(curDir)
+                .AddJsonFile(twitterConfigName, optional: true);
             var localConfig = builder.Build();
             services.Configure<TwitterApiToken>(localConfig);
-
-
-//            services.Configure<TwitterApiToken>(Configuration.GetSection("TwitterApiToken"));     // 追加
-
 
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
         }
