@@ -1,22 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.Serialization.Json;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web;
-using TwitterApiTester.Messages;
-using TwitterApiTester.Models;
 
-namespace TwitterApiTester.Pages
+namespace TwitterApiTester.Twitter
 {
     /// <summary>
     /// Twitterクライアント
     /// </summary>
     public class TwitterClient : HttpClient
     {
+        // TODO:定数は後でconfigに移動する
+        private const string USER_ID = "364233642";   // Gloops公式のUserID
+
+
         private readonly TwitterApiToken _twitterApiToken;
 
         public enum MethodType
@@ -43,6 +44,35 @@ namespace TwitterApiTester.Pages
             throw new NotImplementedException();
         }
 
+        public async Task<List<GetTimelineResponse>> GetTimeline()
+        {
+            var bearerToken = await GetBearerToken();
+
+            var content = new FormUrlEncodedContent(new Dictionary<string, string>()
+            {
+                { "user_id", USER_ID },
+                { "count", "200" },         // 最新から200件。 200件以上ある場合は since_id を指定しないとダメかもだ
+                { "trim_user", "" },
+                { "exclude_replies", "true" },
+                { "contributor_details", "false" },
+                { "include_rts", "false" },
+            });
+
+            var queryString = content.ReadAsStringAsync().Result;
+
+            DefaultRequestHeaders.Accept.Clear();
+            DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                bearerToken.access_token);
+
+            var response = await GetAsync($"{TwitterApi.GetUserTimeline}?{queryString}");
+            var result = await response.Content.ReadAsStreamAsync();
+            var serializer = new DataContractJsonSerializer(typeof(List<GetTimelineResponse>));
+            return serializer.ReadObject(result) as List<GetTimelineResponse>;
+        }
+
+
+
         /// <summary>
         /// ベアラートークンを取得する
         /// </summary>
@@ -50,7 +80,7 @@ namespace TwitterApiTester.Pages
         /// <remarks>
         /// タイムラインの取得にはこちらを使用する。
         /// </remarks>
-        public async Task<GetBearerTokenResponse> GetBearerToken()
+        private async Task<GetBearerTokenResponse> GetBearerToken()
         {
             var content = new FormUrlEncodedContent(new Dictionary<string, string>()
             {
@@ -62,7 +92,7 @@ namespace TwitterApiTester.Pages
                 "Basic",
                 Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_twitterApiToken.ConsumerApiKey}:{_twitterApiToken.ConsumerApiSecretKey}")));
 
-            var response = await PostAsync($"https://api.twitter.com/oauth2/token", content);
+            var response = await PostAsync(TwitterApi.GetBearerToken, content);
             var result = await response.Content.ReadAsStreamAsync();
             var serializer = new DataContractJsonSerializer(typeof(GetBearerTokenResponse));
             return serializer.ReadObject(result) as GetBearerTokenResponse;

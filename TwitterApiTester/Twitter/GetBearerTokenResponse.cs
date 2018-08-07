@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace TwitterApiTester.Messages
+namespace TwitterApiTester.Twitter
 {
     public class GetBearerTokenResponse
     {
