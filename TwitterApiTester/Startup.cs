@@ -1,11 +1,18 @@
+using System;
+using System.IO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using System.IO;
 using TwitterApiTester.Twitter;
+
+//using System.IO;
+//using Microsoft.AspNetCore.Identity;
+//using TwitterApiTester.Twitter;
+using Microsoft.AspNetCore.Authentication.Twitter;
 
 namespace TwitterApiTester
 {
@@ -42,6 +49,14 @@ namespace TwitterApiTester
             var localConfig = builder.Build();
             services.Configure<TwitterApiToken>(localConfig);
 
+            // Twitterのリクエストトークンを保持するためにセッション変数を使う
+            services.AddDistributedMemoryCache();
+            services.AddSession(options =>
+            {
+                options.IdleTimeout = TimeSpan.FromSeconds(6000);   // とりあえず100分
+                options.Cookie.HttpOnly = true;
+            });
+
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
         }
 
@@ -61,6 +76,7 @@ namespace TwitterApiTester
             app.UseHttpsRedirection();
             app.UseStaticFiles();
             app.UseCookiePolicy();
+            app.UseSession();           // セッション使用
 
             app.UseMvc();
         }
