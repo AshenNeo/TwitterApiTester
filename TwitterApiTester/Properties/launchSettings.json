@@ -3,7 +3,7 @@
     "windowsAuthentication": false,
     "anonymousAuthentication": true,
     "iis": {
-      "applicationUrl": "http://localhost/TwitterApiTester",
+      "applicationUrl": "http://127.0.0.1/TwitterApiTester",
       "sslPort": 0
     },
     "iisExpress": {
