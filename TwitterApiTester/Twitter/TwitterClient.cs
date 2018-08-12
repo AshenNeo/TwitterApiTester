@@ -20,8 +20,8 @@ namespace TwitterApiTester.Twitter
         // TODO:定数は後でconfigに移動する
         private const string USER_ID = "364233642";   // Gloops公式のUserID
 
-        private const string SESSION_DATA_OAUTH_TOKEN = "OAUTH_TOKEN";
-        private const string SESSION_DATA_OAUTH_TOKEN_SECRET = "OAUTH_TOKEN_SECRET";
+        private const string SESSION_DATA_REQUEST_TOKEN = "OAUTH_TOKEN";
+        private const string SESSION_DATA_REQUEST_TOKEN_SECRET = "OAUTH_TOKEN_SECRET";
 
         /// <summary>
         /// API実行時のコールバックURL
@@ -72,12 +72,10 @@ namespace TwitterApiTester.Twitter
         {
             // セッション情報に保存されている場合はその値を使用する。
             // 存在しない場合は取得する。
-            var oauthToken = _session.GetString(SESSION_DATA_OAUTH_TOKEN);
+            var oauthToken = _session.GetString(SESSION_DATA_REQUEST_TOKEN);
             if (string.IsNullOrEmpty(oauthToken))
             {
-                var sinceEpoch = DateTime.UtcNow - new DateTime(1970, 1, 1);
-                var timeStamp = Math.Round(sinceEpoch.TotalSeconds).ToString();
-
+                var timeStamp = GetTimeStamp();
                 var oAuthHeaderParams = new SortedDictionary<string, string>
                 {
                     { "oauth_callback", HttpUtility.UrlEncode(CALLBACK_URL) },
@@ -88,14 +86,14 @@ namespace TwitterApiTester.Twitter
                     { "oauth_version", "1.0" },
                 };
 
-                var signature = CreateOAuthSignature(MethodType.Get, TwitterApi.GetRequestToken, oAuthHeaderParams);
+                var signature = CreateOAuthSignature(MethodType.Get, TwitterApi.GetRequestToken, "", oAuthHeaderParams);
                 var response = await GetStringAsync($"{TwitterApi.GetRequestToken}?{BuildQueryString(oAuthHeaderParams)}&oauth_signature={Uri.EscapeDataString(signature)}");
                 var tokens = HttpUtility.ParseQueryString(response);
 
                 oauthToken = tokens["oauth_token"];
 
-                _session.SetString(SESSION_DATA_OAUTH_TOKEN, oauthToken);
-                _session.SetString(SESSION_DATA_OAUTH_TOKEN_SECRET, tokens["oauth_token_secret"]);
+                _session.SetString(SESSION_DATA_REQUEST_TOKEN, oauthToken);
+                _session.SetString(SESSION_DATA_REQUEST_TOKEN_SECRET, tokens["oauth_token_secret"]);
             }
 
             return oauthToken;
@@ -108,9 +106,46 @@ namespace TwitterApiTester.Twitter
         /// <remarks>
         /// リツイート等、ユーザーアカウントで行う操作にはこちらを使用する。
         /// </remarks>
-        public async Task GetAccessToken()
+        public async Task<GetAccessTokenResponse> GetAccessToken()
         {
-            throw new NotImplementedException();
+            var timeStamp = GetTimeStamp();
+            var oAuthHeaderParams = new SortedDictionary<string, string>
+            {
+                { "oauth_consumer_key", _twitterApiToken.ConsumerApiKey },
+                { "oauth_nonce", GenerateNonce() },
+                { "oauth_signature_method", "HMAC-SHA1" },
+                { "oauth_timestamp", timeStamp },
+                { "oauth_token", _oauthToken },
+                { "oauth_version", "1.0" },
+            };
+
+            var requestTokenSecret = _session.GetString(SESSION_DATA_REQUEST_TOKEN_SECRET);
+            var signature = CreateOAuthSignature(MethodType.Post, TwitterApi.GetAccessToken, requestTokenSecret, oAuthHeaderParams);
+
+            oAuthHeaderParams.AddUrlEncodedItem("oauth_signature", signature);
+            oAuthHeaderParams["oauth_token"] = HttpUtility.UrlEncode(_oauthToken);
+
+            using (var content = new FormUrlEncodedContent(new Dictionary<string, string>()
+            {
+                {"oauth_verifier", _oauthVerifier}
+            }))
+            {
+                DefaultRequestHeaders.Accept.Clear();
+                DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "OAuth",
+                    BuildQueryString(oAuthHeaderParams));
+
+                var response = await PostAsync(TwitterApi.GetAccessToken, content);
+                var responseBody = await response.Content.ReadAsStringAsync();
+                var tokens = HttpUtility.ParseQueryString(responseBody);
+                return new GetAccessTokenResponse()
+                {
+                    oauth_token = tokens["oauth_token"],
+                    oauth_token_secret = tokens["oauth_token_secret"],
+                    user_id = tokens["user_id"],
+                    screen_name = tokens["screen_name"],
+                };
+            }
         }
 
 
@@ -182,11 +217,11 @@ namespace TwitterApiTester.Twitter
         /// ユーザーのアクセストークンでOAuth署名を作成する
         /// </summary>
         /// <returns></returns>
-        private string CreateOAuthSignature(MethodType methodType, string requestUrl, SortedDictionary<string, string> oAuthHeaderParams)
+        private string CreateOAuthSignature(MethodType methodType, string requestUrl, string requestTokenSecret, SortedDictionary<string, string> oAuthHeaderParams)
         {
             // 署名キー作成
             var apiSecretKey = HttpUtility.UrlEncode(_twitterApiToken.ConsumerApiSecretKey);
-            var accessTokenSecret = HttpUtility.UrlEncode("");
+            var accessTokenSecret = HttpUtility.UrlEncode(requestTokenSecret);
             var signatureKey = $"{apiSecretKey}&{accessTokenSecret}";
 
             // 署名データ作成
@@ -214,6 +249,12 @@ namespace TwitterApiTester.Twitter
         {
             // Just a simple implementation of a random number between 123400 and 9999999 
             return random.Next(123400, 9999999).ToString();
+        }
+
+        private static string GetTimeStamp()
+        {
+            var sinceEpoch = DateTime.UtcNow - new DateTime(1970, 1, 1);
+            return Math.Round(sinceEpoch.TotalSeconds).ToString();
         }
     }
 }

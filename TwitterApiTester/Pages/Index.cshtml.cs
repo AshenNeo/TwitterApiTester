@@ -48,9 +48,11 @@ namespace TwitterApiTester.Pages
             {
                 if (IsTwitterSignin)
                 {
+                    var accessToken = await twitterClient.GetAccessToken();
+                    Console.WriteLine(accessToken.oauth_token_secret);
 
 
-                    
+
                 }
                 else
                 {
