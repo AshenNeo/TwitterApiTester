@@ -46,7 +46,7 @@ namespace TwitterApiTester.Pages
 
             using (var twitterClient = new TwitterClient(_twitterApiToken, HttpContext.Session, _oauthToken, _oauthVerifier))
             {
-                if (IsTwitterSignin)
+                if (twitterClient.HasRequestToken && IsTwitterSignin)
                 {
                     var accessToken = await twitterClient.GetAccessToken();
                     Console.WriteLine(accessToken.oauth_token_secret);
