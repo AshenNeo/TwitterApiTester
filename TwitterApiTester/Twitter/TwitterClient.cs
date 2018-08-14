@@ -78,27 +78,58 @@ namespace TwitterApiTester.Twitter
             if (string.IsNullOrEmpty(oauthToken))
             {
                 var timeStamp = GetTimeStamp();
-                var oAuthHeaderParams = new SortedDictionary<string, string>
+                var requestParams = new SortedDictionary<string, string>
                 {
-                    { "oauth_callback", HttpUtility.UrlEncode(CALLBACK_URL) },
-                    { "oauth_consumer_key", _twitterApiToken.ConsumerApiKey },
-                    { "oauth_signature_method", "HMAC-SHA1" },
-                    { "oauth_timestamp", timeStamp },
-                    { "oauth_nonce", GenerateNonce() },
-                    { "oauth_version", "1.0" },
+                    { "oauth_callback", CALLBACK_URL },
+                    { "oauth_consumer_key", Uri.EscapeDataString(_twitterApiToken.ConsumerApiKey) },
+                    { "oauth_signature_method", Uri.EscapeDataString("HMAC-SHA1") },
+                    { "oauth_timestamp", Uri.EscapeDataString(timeStamp) },
+                    { "oauth_nonce", Uri.EscapeDataString(GenerateNonce()) },
+                    { "oauth_version", Uri.EscapeDataString("1.0") },
+//                    { "oauth_callback", CALLBACK_URL },
+//                    { "oauth_consumer_key", _twitterApiToken.ConsumerApiKey },
+//                    { "oauth_signature_method", "HMAC-SHA1" },
+//                    { "oauth_timestamp", timeStamp },
+//                    { "oauth_nonce", GenerateNonce() },
+//                    { "oauth_version", "1.0" },
                 };
 
-                var signature = CreateOAuthSignature(MethodType.Get, TwitterApi.GetRequestToken, "", oAuthHeaderParams);
-                var response = await GetStringAsync($"{TwitterApi.GetRequestToken}?{BuildQueryString(oAuthHeaderParams)}&oauth_signature={Uri.EscapeDataString(signature)}");
-                var tokens = HttpUtility.ParseQueryString(response);
+                var signature = CreateOAuthSignature(MethodType.Get, TwitterApi.GetRequestToken, "", requestParams);
+                requestParams.Add("oauth_signature", signature);
 
-                oauthToken = tokens["oauth_token"];
+                using (var content = new FormUrlEncodedContent(new Dictionary<string, string>()
+                {
+                    //{"oauth_callback", CALLBACK_URL}
+                    {"oauth_callback", Uri.EscapeDataString(CALLBACK_URL)}
+                }))
+                {
+                    DefaultRequestHeaders.Accept.Clear();
+                    DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                        "OAuth",
+                        BuildUrlQueryString(requestParams));
 
-                _session.SetString(SESSION_DATA_REQUEST_TOKEN, oauthToken);
-                _session.SetString(SESSION_DATA_REQUEST_TOKEN_SECRET, tokens["oauth_token_secret"]);
+                    var response = await PostAsync(TwitterApi.GetAccessToken, content);
+                    var responseBody = await response.Content.ReadAsStringAsync();
+                    var tokens = HttpUtility.ParseQueryString(responseBody);
+
+                    oauthToken = tokens["oauth_token"];
+
+                    _session.SetString(SESSION_DATA_REQUEST_TOKEN, oauthToken);
+                    _session.SetString(SESSION_DATA_REQUEST_TOKEN_SECRET, tokens["oauth_token_secret"]);
+                    return oauthToken;
+                }
+
+                //var response = await GetStringAsync($"{TwitterApi.GetRequestToken}?{BuildQueryString(requestParams)}&oauth_signature={Uri.EscapeDataString(signature)}");
+                //var tokens = HttpUtility.ParseQueryString(response);
+
+                //oauthToken = tokens["oauth_token"];
+
+                //_session.SetString(SESSION_DATA_REQUEST_TOKEN, oauthToken);
+                //_session.SetString(SESSION_DATA_REQUEST_TOKEN_SECRET, tokens["oauth_token_secret"]);
             }
 
-            return oauthToken;
+            //return oauthToken;
+            return "";
         }
 
         /// <summary>
@@ -129,8 +160,6 @@ namespace TwitterApiTester.Twitter
             //requestParams.AddUrlEncodedItem("oauth_signature", signature);
             requestParams.Add("oauth_signature", signature);
 
-
-
             using (var content = new FormUrlEncodedContent(new Dictionary<string, string>()
             {
                 {"oauth_verifier", _oauthVerifier}
@@ -139,7 +168,7 @@ namespace TwitterApiTester.Twitter
                 DefaultRequestHeaders.Accept.Clear();
                 DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
                     "OAuth",
-                    BuildQueryString(requestParams));
+                    BuildUrlQueryString(requestParams));
 
                 var response = await PostAsync(TwitterApi.GetAccessToken, content);
                 var responseBody = await response.Content.ReadAsStringAsync();
@@ -171,7 +200,7 @@ namespace TwitterApiTester.Twitter
         {
             var bearerToken = await GetBearerToken();
 
-            var queryString = BuildQueryString(new Dictionary<string, string>()
+            var queryString = BuildUrlEncodedQueryString(new Dictionary<string, string>()
             {
                 { "user_id", USER_ID },
                 { "count", "200" },         // 最新から200件。 200件以上ある場合は since_id を指定しないとダメかもだ
@@ -232,7 +261,7 @@ namespace TwitterApiTester.Twitter
 
             // 署名データ作成
             var requestMethod = methodType == MethodType.Get ? "GET" : "POST";
-            var signatureData = $"{requestMethod}&{Uri.EscapeDataString(requestUrl)}&{Uri.EscapeDataString(BuildQueryString(requestParams))}";
+            var signatureData = $"{requestMethod}&{Uri.EscapeDataString(requestUrl)}&{Uri.EscapeDataString(BuildUrlQueryString(requestParams))}";
 
             // HMAC-SHA1、Base64
             var signatureKeyBites = Encoding.UTF8.GetBytes(signatureKey);
@@ -243,13 +272,31 @@ namespace TwitterApiTester.Twitter
             return Convert.ToBase64String(hmacHashBites);
         }
 
-        private static string BuildQueryString(IEnumerable<KeyValuePair<string, string>> nameValueCollection)
+        private static string BuildUrlEncodedQueryString(IEnumerable<KeyValuePair<string, string>> nameValueCollection)
         {
             using (var content = new FormUrlEncodedContent(nameValueCollection))
             {
                 return content.ReadAsStringAsync().Result;
             }
         }
+
+        private static string BuildUrlQueryString(IEnumerable<KeyValuePair<string, string>> nameValueCollection)
+        {
+            var builder = new StringBuilder();
+            foreach(var item in nameValueCollection)
+            {
+                if(builder.Length > 0)
+                {
+                    builder.Append("&");
+                }
+
+                builder.Append($"{item.Key}={item.Value}");
+            }
+
+            return builder.ToString();
+        }
+
+
 
         private string GenerateNonce()
         {

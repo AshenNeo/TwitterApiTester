@@ -13,6 +13,7 @@ using TwitterApiTester.Twitter;
 //using Microsoft.AspNetCore.Identity;
 //using TwitterApiTester.Twitter;
 using Microsoft.AspNetCore.Authentication.Twitter;
+using System.Security.Claims;
 
 namespace TwitterApiTester
 {
@@ -53,6 +54,22 @@ namespace TwitterApiTester
             // Twitterのリクエストトークンを保持するためにセッション変数を使う
             services.AddDistributedMemoryCache();
             services.AddSession();
+
+            // https://github.com/aspnet/Docs/blob/master/aspnetcore/security/authentication/social/twitter-logins.md
+
+            var c = services.ConfigureOptions<TwitterApiToken>();
+            services.AddAuthentication().AddTwitter(TwitterOptions =>
+            {
+                TwitterOptions.ConsumerKey = Configuration["Authentication:Twitter:ConsumerKey"];
+                TwitterOptions.ConsumerSecret = Configuration["Authentication:Twitter:ConsumerSecret"];
+                TwitterOptions.Events.OnCreatingTicket = async context =>
+                {
+                    var identity = (ClaimsIdentity)context.Principal.Identity;
+                    identity.AddClaim(new Claim(nameof(context.AccessToken), context.AccessToken));
+                    identity.AddClaim(new Claim(nameof(context.AccessTokenSecret), context.AccessTokenSecret));
+                };
+            });
+
 
         /*
             services.AddSession(options =>
