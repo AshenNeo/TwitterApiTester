@@ -111,21 +111,25 @@ namespace TwitterApiTester.Twitter
         public async Task<GetAccessTokenResponse> GetAccessToken()
         {
             var timeStamp = GetTimeStamp();
-            var oAuthHeaderParams = new SortedDictionary<string, string>
+
+            var requestParams = new SortedDictionary<string, string>
             {
-                { "oauth_consumer_key", _twitterApiToken.ConsumerApiKey },
-                { "oauth_nonce", GenerateNonce() },
-                { "oauth_signature_method", "HMAC-SHA1" },
-                { "oauth_timestamp", timeStamp },
-                { "oauth_token", _oauthToken },
-                { "oauth_version", "1.0" },
+                { "oauth_consumer_key", Uri.EscapeDataString(_twitterApiToken.ConsumerApiKey) },
+                { "oauth_token", Uri.EscapeDataString(_oauthToken) },
+                { "oauth_signature_method", Uri.EscapeDataString("HMAC-SHA1") },
+                { "oauth_timestamp", Uri.EscapeDataString(timeStamp) },
+                { "oauth_nonce", Uri.EscapeDataString(GenerateNonce()) },
+                { "oauth_version", Uri.EscapeDataString("1.0") },
+                {"oauth_verifier", Uri.EscapeDataString(_oauthVerifier)}
             };
 
             var requestTokenSecret = _session.GetString(SESSION_DATA_REQUEST_TOKEN_SECRET);
-            var signature = CreateOAuthSignature(MethodType.Post, TwitterApi.GetAccessToken, requestTokenSecret, oAuthHeaderParams);
+            var signature = CreateOAuthSignature(MethodType.Post, TwitterApi.GetAccessToken, requestTokenSecret, requestParams);
 
-            oAuthHeaderParams.AddUrlEncodedItem("oauth_signature", signature);
-            oAuthHeaderParams["oauth_token"] = HttpUtility.UrlEncode(_oauthToken);
+            //requestParams.AddUrlEncodedItem("oauth_signature", signature);
+            requestParams.Add("oauth_signature", signature);
+
+
 
             using (var content = new FormUrlEncodedContent(new Dictionary<string, string>()
             {
@@ -135,7 +139,7 @@ namespace TwitterApiTester.Twitter
                 DefaultRequestHeaders.Accept.Clear();
                 DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
                     "OAuth",
-                    BuildQueryString(oAuthHeaderParams));
+                    BuildQueryString(requestParams));
 
                 var response = await PostAsync(TwitterApi.GetAccessToken, content);
                 var responseBody = await response.Content.ReadAsStringAsync();
@@ -219,7 +223,7 @@ namespace TwitterApiTester.Twitter
         /// ユーザーのアクセストークンでOAuth署名を作成する
         /// </summary>
         /// <returns></returns>
-        private string CreateOAuthSignature(MethodType methodType, string requestUrl, string requestTokenSecret, SortedDictionary<string, string> oAuthHeaderParams)
+        private string CreateOAuthSignature(MethodType methodType, string requestUrl, string requestTokenSecret, SortedDictionary<string, string> requestParams)
         {
             // 署名キー作成
             var apiSecretKey = HttpUtility.UrlEncode(_twitterApiToken.ConsumerApiSecretKey);
@@ -228,7 +232,7 @@ namespace TwitterApiTester.Twitter
 
             // 署名データ作成
             var requestMethod = methodType == MethodType.Get ? "GET" : "POST";
-            var signatureData = $"{requestMethod}&{Uri.EscapeDataString(requestUrl)}&{Uri.EscapeDataString(BuildQueryString(oAuthHeaderParams))}";
+            var signatureData = $"{requestMethod}&{Uri.EscapeDataString(requestUrl)}&{Uri.EscapeDataString(BuildQueryString(requestParams))}";
 
             // HMAC-SHA1、Base64
             var signatureKeyBites = Encoding.UTF8.GetBytes(signatureKey);
