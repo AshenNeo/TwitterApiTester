@@ -39,11 +39,11 @@ namespace TwitterApiTester
             */
             // ローカル環境のTwitter設定があれば適用する。
             var curDir = Directory.GetCurrentDirectory();
-
+            
             var twitterConfigName = (File.Exists($"{curDir}\\appsettings.twitter.local.json"))
                 ? "appsettings.twitter.local.json"
                 : "appsettings.twitter.json";
-
+            
             var builder = new ConfigurationBuilder();
             builder
                 .SetBasePath(curDir)
@@ -51,34 +51,21 @@ namespace TwitterApiTester
             var localConfig = builder.Build();
             services.Configure<TwitterApiToken>(localConfig);
 
+
             // Twitterのリクエストトークンを保持するためにセッション変数を使う
             services.AddDistributedMemoryCache();
             services.AddSession();
-
-            // https://github.com/aspnet/Docs/blob/master/aspnetcore/security/authentication/social/twitter-logins.md
-
-            var c = services.ConfigureOptions<TwitterApiToken>();
-            services.AddAuthentication().AddTwitter(TwitterOptions =>
-            {
-                TwitterOptions.ConsumerKey = Configuration["Authentication:Twitter:ConsumerKey"];
-                TwitterOptions.ConsumerSecret = Configuration["Authentication:Twitter:ConsumerSecret"];
-                TwitterOptions.Events.OnCreatingTicket = async context =>
-                {
-                    var identity = (ClaimsIdentity)context.Principal.Identity;
-                    identity.AddClaim(new Claim(nameof(context.AccessToken), context.AccessToken));
-                    identity.AddClaim(new Claim(nameof(context.AccessTokenSecret), context.AccessTokenSecret));
-                };
-            });
-
-
-        /*
             services.AddSession(options =>
             {
                 options.Cookie.Name = ".TwitterApiTester.Session";
                 options.IdleTimeout = TimeSpan.FromSeconds(6000);   // とりあえず100分
                 options.Cookie.HttpOnly = true;
             });
-            */
+
+            // TweetSharp
+
+
+
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
         }
 

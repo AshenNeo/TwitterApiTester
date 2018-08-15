@@ -1,14 +1,12 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Http;
+using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.Serialization.Json;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web;
-using System.IO;
-using Microsoft.AspNetCore.Http;
 
 namespace TwitterApiTester.Twitter
 {
@@ -29,7 +27,7 @@ namespace TwitterApiTester.Twitter
         /// アプリケーション設定でコールバックURLを登録していない場合は "oob" を指定する。
         /// </summary>
         private const string CALLBACK_URL = "http://127.0.0.1/TwitterApiTester/";
-//        private const string CALLBACK_URL = "oob";      // デスクトップアプリケーションの場合はこの値を指定する
+        //private const string CALLBACK_URL = "oob";      // デスクトップアプリケーションの場合はこの値を指定する
 
         private Random random = new Random();
 
@@ -81,11 +79,11 @@ namespace TwitterApiTester.Twitter
                 var requestParams = new SortedDictionary<string, string>
                 {
                     { "oauth_callback", CALLBACK_URL },
-                    { "oauth_consumer_key", Uri.EscapeDataString(_twitterApiToken.ConsumerApiKey) },
-                    { "oauth_signature_method", Uri.EscapeDataString("HMAC-SHA1") },
-                    { "oauth_timestamp", Uri.EscapeDataString(timeStamp) },
-                    { "oauth_nonce", Uri.EscapeDataString(GenerateNonce()) },
-                    { "oauth_version", Uri.EscapeDataString("1.0") },
+                    { "oauth_consumer_key", HttpUtility.UrlEncode(_twitterApiToken.ConsumerApiKey) },
+                    { "oauth_signature_method", HttpUtility.UrlEncode("HMAC-SHA1") },
+                    { "oauth_timestamp", HttpUtility.UrlEncode(timeStamp) },
+                    { "oauth_nonce", HttpUtility.UrlEncode(GenerateNonce()) },
+                    { "oauth_version", HttpUtility.UrlEncode("1.0") },
 //                    { "oauth_callback", CALLBACK_URL },
 //                    { "oauth_consumer_key", _twitterApiToken.ConsumerApiKey },
 //                    { "oauth_signature_method", "HMAC-SHA1" },
@@ -94,13 +92,13 @@ namespace TwitterApiTester.Twitter
 //                    { "oauth_version", "1.0" },
                 };
 
-                var signature = CreateOAuthSignature(MethodType.Get, TwitterApi.GetRequestToken, "", requestParams);
+                var signature = CreateOAuthSignature(MethodType.Post, TwitterApi.GetRequestToken, "", requestParams);
                 requestParams.Add("oauth_signature", signature);
 
                 using (var content = new FormUrlEncodedContent(new Dictionary<string, string>()
                 {
                     //{"oauth_callback", CALLBACK_URL}
-                    {"oauth_callback", Uri.EscapeDataString(CALLBACK_URL)}
+                    {"oauth_callback", HttpUtility.UrlEncode(CALLBACK_URL)}
                 }))
                 {
                     DefaultRequestHeaders.Accept.Clear();
@@ -145,13 +143,13 @@ namespace TwitterApiTester.Twitter
 
             var requestParams = new SortedDictionary<string, string>
             {
-                { "oauth_consumer_key", Uri.EscapeDataString(_twitterApiToken.ConsumerApiKey) },
-                { "oauth_token", Uri.EscapeDataString(_oauthToken) },
-                { "oauth_signature_method", Uri.EscapeDataString("HMAC-SHA1") },
-                { "oauth_timestamp", Uri.EscapeDataString(timeStamp) },
-                { "oauth_nonce", Uri.EscapeDataString(GenerateNonce()) },
-                { "oauth_version", Uri.EscapeDataString("1.0") },
-                {"oauth_verifier", Uri.EscapeDataString(_oauthVerifier)}
+                { "oauth_consumer_key", HttpUtility.UrlEncode(_twitterApiToken.ConsumerApiKey) },
+                { "oauth_token", HttpUtility.UrlEncode(_oauthToken) },
+                { "oauth_signature_method", HttpUtility.UrlEncode("HMAC-SHA1") },
+                { "oauth_timestamp", HttpUtility.UrlEncode(timeStamp) },
+                { "oauth_nonce", HttpUtility.UrlEncode(GenerateNonce()) },
+                { "oauth_version", HttpUtility.UrlEncode("1.0") },
+                {"oauth_verifier", HttpUtility.UrlEncode(_oauthVerifier)}
             };
 
             var requestTokenSecret = _session.GetString(SESSION_DATA_REQUEST_TOKEN_SECRET);
@@ -255,17 +253,15 @@ namespace TwitterApiTester.Twitter
         private string CreateOAuthSignature(MethodType methodType, string requestUrl, string requestTokenSecret, SortedDictionary<string, string> requestParams)
         {
             // 署名キー作成
-            var apiSecretKey = HttpUtility.UrlEncode(_twitterApiToken.ConsumerApiSecretKey);
-            var accessTokenSecret = HttpUtility.UrlEncode(requestTokenSecret);
-            var signatureKey = $"{apiSecretKey}&{accessTokenSecret}";
+            var signatureKey = $"{HttpUtility.UrlEncode(_twitterApiToken.ConsumerApiSecretKey)}&{HttpUtility.UrlEncode(requestTokenSecret)}";
 
             // 署名データ作成
             var requestMethod = methodType == MethodType.Get ? "GET" : "POST";
-            var signatureData = $"{requestMethod}&{Uri.EscapeDataString(requestUrl)}&{Uri.EscapeDataString(BuildUrlQueryString(requestParams))}";
+            var signatureData = $"{requestMethod}&{HttpUtility.UrlEncode(requestUrl)}&{HttpUtility.UrlEncode(BuildUrlQueryString(requestParams))}";
 
             // HMAC-SHA1、Base64
-            var signatureKeyBites = Encoding.UTF8.GetBytes(signatureKey);
-            var signatureDataBites = Encoding.UTF8.GetBytes(signatureData);
+            var signatureKeyBites = Encoding.ASCII.GetBytes(signatureKey);
+            var signatureDataBites = Encoding.ASCII.GetBytes(signatureData);
             var hmac = new System.Security.Cryptography.HMACSHA1(signatureKeyBites);
             var hmacHashBites = hmac.ComputeHash(signatureDataBites);
 

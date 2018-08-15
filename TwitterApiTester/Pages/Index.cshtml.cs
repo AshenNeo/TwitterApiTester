@@ -1,9 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
-using System;
-using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+using Tweetinvi;
+using Tweetinvi.Models;
 using TwitterApiTester.Twitter;
 
 namespace TwitterApiTester.Pages
@@ -12,18 +11,28 @@ namespace TwitterApiTester.Pages
     /// サインイン実行後はこのページに戻る。
     /// サインイン実行後は
     ///     http://127.0.0.1/TwitterApiTester/?oauth_token=MrSl8AAAAAAA8CTYAAABZSNSmOg&oauth_verifier=3onDUzyzo5qt4fh5zu9R6Ur1ffr4SXQw
-    /// のように、クエリパラメータでoauth_tokenとoauth_verifierが帰るので、この値でAPIを実行する。
+    /// のように、クエリパラメータでoauth_tokenとoauth_verifierとauthorization_idが帰るので、この値でAPIを実行する。
     /// ユーザーがサインインを拒否した場合はクエリパラメータでdeniedが帰る。
     /// </summary>
     public class IndexModel : PageModel
     {
+        private const string CALLBACK_URL = "http://127.0.0.1/TwitterApiTester/";
+        private const string QUERY_PARAM_OAUTH_TOKEN = "oauth_token";
+        private const string QUERY_PARAM_OAUTH_VERIFIER = "oauth_verifier";
+        private const string QUERY_PARAM_AUTHORIZATION_ID = "authorization_id";
+
         private readonly TwitterApiToken _twitterApiToken;
 
         public bool IsTwitterSignin { get; set; }
+
+        public string AuthorizationUri { get; set; }
+
+
         public string RequestToken { get; set; }
 
-        private string _oauthToken;
-        private string _oauthVerifier;
+        private string _requestToken;
+        private string _requestTokenVerifier;
+        private string _authorizationId;
 
 
         public IndexModel(IOptions<TwitterApiToken> optionsAccessor)
@@ -33,36 +42,32 @@ namespace TwitterApiTester.Pages
 
         public async Task OnGetAsync()
         {
-            if (Request.Query.ContainsKey("oauth_token") && Request.Query.ContainsKey("oauth_verifier"))
+            if (Request.Query.ContainsKey(QUERY_PARAM_OAUTH_TOKEN) && Request.Query.ContainsKey(QUERY_PARAM_OAUTH_VERIFIER) && Request.Query.ContainsKey(QUERY_PARAM_AUTHORIZATION_ID))
             {
                 IsTwitterSignin = true;
-                _oauthToken = Request.Query["oauth_token"];
-                _oauthVerifier = Request.Query["oauth_verifier"];
+                _requestToken = Request.Query[QUERY_PARAM_OAUTH_TOKEN];
+                _requestTokenVerifier = Request.Query[QUERY_PARAM_OAUTH_VERIFIER];
+                _authorizationId = Request.Query[QUERY_PARAM_AUTHORIZATION_ID];
             }
             else
             {
                 IsTwitterSignin = false;
             }
 
-            using (var twitterClient = new TwitterClient(_twitterApiToken, HttpContext.Session, _oauthToken, _oauthVerifier))
+            if (IsTwitterSignin)
             {
-                if (twitterClient.HasRequestToken && IsTwitterSignin)
-                {
-                    var accessToken = await twitterClient.GetAccessToken();
-                    Console.WriteLine(accessToken.oauth_token_secret);
+                // 指定アカウントの最新Tweetを取得してリツイートする。
+                var userCreds = AuthFlow.CreateCredentialsFromVerifierCode(_requestTokenVerifier, _authorizationId);
 
 
-
-                }
-                else
-                {
-                    RequestToken = await twitterClient.GetRequestToken();
-                    //                IsTwitterSignin = twitterClient.IsSignIn();
-                }
-
-                // タイムラインを取得してリツイート数を集計する
-                var timelines = await twitterClient.GetTimeline();
-                Console.WriteLine(timelines.Sum(_ => _.retweet_count).ToString());
+                // 参考：普通にTweetする場合はこう。
+                var tweet = Auth.ExecuteOperationWithCredentials(userCreds, () => Tweet.PublishTweet("てすとです"));
+            }
+            else
+            {
+                var appCredentials = new TwitterCredentials(_twitterApiToken.ConsumerApiKey, _twitterApiToken.ConsumerApiSecretKey);
+                var authenticationContext = AuthFlow.InitAuthentication(appCredentials, CALLBACK_URL);
+                AuthorizationUri = authenticationContext.AuthorizationURL;
             }
         }
     }

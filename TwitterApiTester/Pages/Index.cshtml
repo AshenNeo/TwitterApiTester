@@ -7,7 +7,7 @@
 @if (! Model.IsTwitterSignin)
 {
     <div>
-        <a class="btn btn-default" href="https://api.twitter.com/oauth/authenticate?oauth_token=@Model.RequestToken">
+        <a class="btn btn-default" href="@Model.AuthorizationUri">
             Twitter Signin
         </a>
     </div>
