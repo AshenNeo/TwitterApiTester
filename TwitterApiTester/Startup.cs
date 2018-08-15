@@ -62,10 +62,6 @@ namespace TwitterApiTester
                 options.Cookie.HttpOnly = true;
             });
 
-            // TweetSharp
-
-
-
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
         }
 
