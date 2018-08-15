@@ -1,8 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc.RazorPages;
+﻿using System.Diagnostics;
+using System.Linq;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using System.Threading.Tasks;
 using Tweetinvi;
 using Tweetinvi.Models;
+using Tweetinvi.Parameters;
 using TwitterApiTester.Twitter;
 
 namespace TwitterApiTester.Pages
@@ -20,6 +23,7 @@ namespace TwitterApiTester.Pages
         private const string QUERY_PARAM_OAUTH_TOKEN = "oauth_token";
         private const string QUERY_PARAM_OAUTH_VERIFIER = "oauth_verifier";
         private const string QUERY_PARAM_AUTHORIZATION_ID = "authorization_id";
+        private const long USER_ID = 133684052;   // サントリー公式のUserID
 
         private readonly TwitterApiToken _twitterApiToken;
 
@@ -54,18 +58,32 @@ namespace TwitterApiTester.Pages
                 IsTwitterSignin = false;
             }
 
+            var appCredentials = new TwitterCredentials(_twitterApiToken.ConsumerApiKey, _twitterApiToken.ConsumerApiSecretKey);
+            Auth.SetCredentials(appCredentials);
             if (IsTwitterSignin)
             {
                 // 指定アカウントの最新Tweetを取得してリツイートする。
                 var userCreds = AuthFlow.CreateCredentialsFromVerifierCode(_requestTokenVerifier, _authorizationId);
-
+                Auth.ExecuteOperationWithCredentials(userCreds, () =>
+                {
+                    var timeline = Timeline.GetUserTimeline(USER_ID, new UserTimelineParameters()
+                    {
+                        IncludeRTS = true,
+                        ExcludeReplies = true,  // Replyを除外
+                        IncludeContributorDetails = true
+                    });
+                    var enumerable = timeline as ITweet[] ?? timeline.ToArray();
+                    if (enumerable.Any())
+                    {
+                        Tweet.PublishRetweet(enumerable.First());
+                    }
+                });
 
                 // 参考：普通にTweetする場合はこう。
-                var tweet = Auth.ExecuteOperationWithCredentials(userCreds, () => Tweet.PublishTweet("てすとです"));
+                //var tweet = Auth.ExecuteOperationWithCredentials(userCreds, () => Tweet.PublishTweet("てすとです"));
             }
             else
             {
-                var appCredentials = new TwitterCredentials(_twitterApiToken.ConsumerApiKey, _twitterApiToken.ConsumerApiSecretKey);
                 var authenticationContext = AuthFlow.InitAuthentication(appCredentials, CALLBACK_URL);
                 AuthorizationUri = authenticationContext.AuthorizationURL;
             }
