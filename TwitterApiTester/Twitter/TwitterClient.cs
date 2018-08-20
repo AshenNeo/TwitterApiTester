@@ -53,15 +53,6 @@ namespace TwitterApiTester.Twitter
             _oauthVerifier = oauthVerifier;
         }
 
-        //        /// <summary>
-        //        /// サインイン済みかチェックする。
-        //        /// </summary>
-        //        /// <returns></returns>
-        //        public bool IsSignIn()
-        //        {
-        //            return false;
-        //        }
-
         public bool HasRequestToken => !string.IsNullOrEmpty(_session.GetString(SESSION_DATA_REQUEST_TOKEN_SECRET));
 
         /// <summary>
