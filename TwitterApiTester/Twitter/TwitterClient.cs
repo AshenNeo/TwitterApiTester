@@ -183,17 +183,6 @@ namespace TwitterApiTester.Twitter
 
 
 
-        //        /// <summary>
-        //        /// サインイン
-        //        /// </summary>
-        //        /// <returns></returns>
-        //        /// <remarks>
-        //        /// リツイート等、ユーザーアカウントで行う操作の前に実行する。
-        //        /// </remarks>
-        //        public async Task SignIn()
-        //        {
-        //        }
-
         public async Task<List<GetTimelineResponse>> GetTimeline()
         {
             var bearerToken = await GetBearerToken();
