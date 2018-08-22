@@ -4,6 +4,30 @@
     ViewData["Title"] = "Home page";
 }
 
+<script
+    src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+    integrity="sha256-3edrmyuQ0w65f8gfBsqowzjJe2iM6n0nKciPUp8y+7E="
+    crossorigin="anonymous"></script>
+
+<script>
+    function onTweet(parameters) {
+        $.get("http://127.0.0.1/TwitterApiTester/api/Tweet/ExecTweet",
+            function(data, status) {
+                if (status === "success") {
+                    if (data.result) {
+                        alert("Success Tweet!");
+                    } else if (data.authorizationUri) {
+                        location.href = data.authorizationUri;
+                    } else {
+                        alert("Unknown Error!");
+                    }
+                } else {
+                    alert("Status:Fail!");
+                }
+            });
+    }
+</script>
+
 @if (! Model.IsTwitterSignin)
 {
     <div>
@@ -12,6 +36,13 @@
         </a>
     </div>
 }
+
+<div>
+    <a class="btn btn-default" onclick="onTweet()">
+        API Test
+    </a>
+</div>
+
 
 <div id="myCarousel" class="carousel slide" data-ride="carousel" data-interval="6000">
     <ol class="carousel-indicators">

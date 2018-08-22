@@ -2,6 +2,7 @@
 using System.Data;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using System.Threading.Tasks;
@@ -114,9 +115,6 @@ namespace TwitterApiTester.Pages
                         Tweet.PublishRetweet(enumerable.First());
                     }
                 });
-
-                // 参考：普通にTweetする場合はこう。
-                //var tweet = Auth.ExecuteOperationWithCredentials(userCreds, () => Tweet.PublishTweet("てすとです"));
             }
             else
             {
