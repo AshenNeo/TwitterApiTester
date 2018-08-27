@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Tweetinvi;
 using Tweetinvi.Models;
+using Tweetinvi.Parameters;
 using TwitterApiTester.Twitter;
 
 namespace TwitterApiTester.Controllers
@@ -41,11 +44,10 @@ namespace TwitterApiTester.Controllers
         }
 
         [HttpGet]
-        public TweetResult ExecTweet()
+        public TweetResult ExecTweet(string oauth_token, string denied)
         {
             var successTweet = false;
             var result = new TweetResult();
-
 
             // ユーザーアクセストークンが保存されている場合はそのまま使う
             // 認証切れ等でトークンが無効な場合、Tweet実行結果が NULL となる。
@@ -63,6 +65,14 @@ namespace TwitterApiTester.Controllers
             {
                 result.Result = true;
                 return result;
+            }
+
+            // ユーザーが認証をキャンセルした場合
+            if (denied != null)
+            {
+                this.HttpContext.Response.Redirect("https://google.com");
+                result.Result = true;
+                return null;
             }
 
             var appCredentials = new TwitterCredentials(_twitterApiToken.ConsumerApiKey, _twitterApiToken.ConsumerApiSecretKey);
@@ -84,9 +94,9 @@ namespace TwitterApiTester.Controllers
                 // 結果ページにリダイレクト
                 if (successTweet)
                 {
-                    this.HttpContext.Response.Redirect("https://google.com");
+                    this.HttpContext.Response.Redirect("https://twitter.com/");
                     result.Result = true;
-                    return result;
+                    return null;
                 }
             }
 
@@ -100,13 +110,52 @@ namespace TwitterApiTester.Controllers
 
         private bool TweetCore(ITwitterCredentials userCredential)
         {
+            Debug.WriteLine($"{Thread.CurrentThread.ManagedThreadId}");
+
             ITweet tweet = null;
             Auth.ExecuteOperationWithCredentials(userCredential, () =>
             {
+                Debug.WriteLine($"{Thread.CurrentThread.ManagedThreadId}");
                 tweet = Tweet.PublishTweet($"Authorized:{DateTime.Now}");
             });
 
             return tweet != null;
+        }
+
+        /// <summary>
+        /// APIのテスト
+        /// </summary>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        [HttpGet]
+        public void GetParam(string a, string b)
+        {
+            Debug.WriteLine($"{a}, {b}");            
+        }
+
+        [HttpGet]
+        public long GetLatestTweetId()
+        {
+            var tweetId = 0L;
+            var creds = new TwitterCredentials(_twitterApiToken.ConsumerApiKey, _twitterApiToken.ConsumerApiSecretKey, _twitterApiToken.AcessToken, _twitterApiToken.AcessTokenSecret);
+            Auth.ExecuteOperationWithCredentials(creds, () =>
+            {
+                var timeline = Timeline.GetUserTimeline(USER_ID, new UserTimelineParameters()
+                {
+                    IncludeRTS = true,
+                    ExcludeReplies = true,  // Replyを除外
+                    IncludeContributorDetails = true,
+                    MaximumNumberOfTweetsToRetrieve = 200
+                });
+                var enumerable = timeline as ITweet[] ?? timeline.ToArray();
+                if (enumerable.Any())
+                {
+                    tweetId = enumerable.First().Id;
+                }
+            });
+
+
+            return tweetId;
         }
     }
 }

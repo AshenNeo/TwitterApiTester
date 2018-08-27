@@ -65,13 +65,24 @@ namespace TwitterApiTester.Pages
                 var userCreds = Auth.SetUserCredentials(_twitterApiToken.ConsumerApiKey,
                     _twitterApiToken.ConsumerApiSecretKey, userAccessToken, userAccessTokenSecret);
 
+                // テスト・タイムライン取得
+                var latestTweetId = GetLatestTweetId(userCreds);
+
                 Auth.ExecuteOperationWithCredentials(userCreds, () =>
                 {
-                    var tweet = Tweet.PublishTweet($"Authorized:{DateTime.Now}");
+                    //                    var tweet = Tweet.PublishTweet($"Authorized:{DateTime.Now}");
+                    var tweet = Tweet.PublishRetweet(latestTweetId);
                     if (tweet != null)
                     {
                         IsTwitterSignin = true;
                         return;
+                    }
+                    else
+                    {
+                        // リツイート済みをリツイートした場合は StatusCode = 403
+                        // 認証なしなら 400、認証が無効なら 401
+                        var latestException = ExceptionHandler.GetLastException();
+                        Console.WriteLine("The following error occured : '{0}'", latestException.TwitterDescription);
                     }
                 });
             }
@@ -91,6 +102,16 @@ namespace TwitterApiTester.Pages
 
             var appCredentials = new TwitterCredentials(_twitterApiToken.ConsumerApiKey, _twitterApiToken.ConsumerApiSecretKey);
             Auth.SetCredentials(appCredentials);
+
+            // テスト・無効な認証でAPI実行
+            var test = GetLatestTweetId(appCredentials);
+            if (test == 0)
+            {
+                var latestException = ExceptionHandler.GetLastException();
+                Console.WriteLine("The following error occured : '{0}'", latestException.TwitterDescription);
+            }
+
+
             if (IsTwitterSignin)
             {
                 // 指定アカウントの最新Tweetを取得してリツイートする。
@@ -100,6 +121,8 @@ namespace TwitterApiTester.Pages
                 HttpContext.Session.SetString(SESSION_USER_ACCESS_TOKEN, userCreds.AccessToken);
                 HttpContext.Session.SetString(SESSION_USER_ACCESS_TOKEN_SECRET, userCreds.AccessTokenSecret);
 
+//                // テスト・タイムライン取得
+//                var latestTweetId = GetLatestTweetId(userCreds);
 
                 Auth.ExecuteOperationWithCredentials(userCreds, () =>
                 {
@@ -114,6 +137,11 @@ namespace TwitterApiTester.Pages
                     {
                         Tweet.PublishRetweet(enumerable.First());
                     }
+                    else
+                    {
+                        var latestException = ExceptionHandler.GetLastException();
+                        Console.WriteLine("The following error occured : '{0}'", latestException.TwitterDescription);
+                    }
                 });
             }
             else
@@ -122,5 +150,36 @@ namespace TwitterApiTester.Pages
                 AuthorizationUri = authenticationContext.AuthorizationURL;
             }
         }
+
+
+        private long GetLatestTweetId(ITwitterCredentials userCredential)
+        {
+            var tweetId = 0L;
+    
+            Auth.ExecuteOperationWithCredentials(userCredential, () =>
+            {
+                var timeline = Timeline.GetUserTimeline(USER_ID, new UserTimelineParameters()
+                {
+                    IncludeRTS = true,
+                    //ExcludeReplies = true,  // Replyを除外
+                    IncludeContributorDetails = true,
+                    MaximumNumberOfTweetsToRetrieve = 1000
+                });
+                var enumerable = timeline == null ? new ITweet[0] :  timeline as ITweet[] ?? timeline.ToArray();
+                if (enumerable.Any())
+                {
+                    tweetId = enumerable.First().Id;
+                }
+                else
+                {
+                    var latestException = ExceptionHandler.GetLastException();
+                    Console.WriteLine("The following error occured : '{0}'", latestException.TwitterDescription);
+                }
+            });
+
+            return tweetId;
+        }
     }
+
+
 }
